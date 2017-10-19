@@ -2,6 +2,7 @@
 # explore the data
 # author: Ronny Macmaster
 
+import custom
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import scipy.stats as stats
@@ -25,34 +26,47 @@ from scipy.stats import skew, boxcox
 from sklearn.preprocessing import scale
 # data["F3"] = boxcox(data["F3"].fillna(0) + 1)[0]
 # data["F19"] = boxcox(data["F19"].fillna(0) + 1)[0]
-# data["F22"] = boxcox(data["F22"].fillna(0) + 1)[0]
-# data["F27"] = boxcox(data["F27"].fillna(0) + 1)[0]
+# data["F22"] = scale(boxcox(data["F22"].fillna(data["F22"].median()) + 1)[0])
+data["F27"] = boxcox(data["F27"].fillna(0) + 1)[0]
 
-# preprocessing pipeline
-print "data before pipeline: ", data.shape
-from sklearn.pipeline import Pipeline, FeatureUnion
-from sklearn.preprocessing import Imputer, StandardScaler, RobustScaler
-columns = data.columns
-pipeline = Pipeline([
-    ("imputer", Imputer(strategy="median")),
-    # ("scaler", RobustScaler()),
-])
+# # preprocessing pipeline
+# print "data before pipeline: ", data.shape
+# from sklearn.pipeline import Pipeline, FeatureUnion
+# from sklearn.preprocessing import Imputer, StandardScaler, RobustScaler
+# columns = data.columns
+# pipeline = Pipeline([
+#     ("imputer", Imputer(strategy="median")),
+#     # ("scaler", RobustScaler()),
+# ])
 
-print data.columns
-data = pipeline.fit_transform(data)
-data = pd.DataFrame(data, columns=columns)
+# print data.columns
+# data = pipeline.fit_transform(data)
+# data = pd.DataFrame(data, columns=columns)
 
-PLOTDIR = "plots/univariate"
-# for feat in data[["F6", "F9", "F16", "F21"]]:
-for feat in data:
-    print "univariate: ", feat, data[feat].dtype
-    print data[feat].describe()
-    sns.distplot(data[feat], bins=50, kde=False)
-    plt.title(feat)
-    # plt.xlim(0, 1000)
-    # plt.savefig("%s/%s.png" % (PLOTDIR, feat))
-    plt.show()
-    plt.close()
+# PLOTDIR = "plots/univariate"
+# # for feat in data[["F6", "F9", "F16", "F21"]]:
+# for feat in data:
+#     sns.distplot(data[feat].dropna(), bins=50, kde=False)
+#     plt.title(feat)
+#     # plt.xlim(0, 1000)
+#     # plt.savefig("%s/%s.png" % (PLOTDIR, feat))
+#     plt.show()
+#     plt.close()
+
+
+# swarming and categorical plotting
+for feat in data[["F14"]]:
+    print feat, ":", data[feat].dtype, data.shape
+    if data[feat].dtype == "int64":
+        # distribution
+        values = data[feat].dropna().astype(int)
+        custom.count_plot(values, y)
+        plt.ylabel("Y")
+        plt.title(feat) 
+
+        plt.tight_layout()
+        plt.show()
+        plt.close()
 
 # # skew experiments
 # from sklearn.preprocessing import scale

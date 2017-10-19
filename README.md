@@ -1,20 +1,38 @@
+[] - probable
+{} - uncertain, but possible
+
+# category summaries
 Y - binary classification. 0 skewed
-F1(int) - skewed 0 category (max 18)
-F2(int) - skewed 0 category (max 98)
-F3(float) - skewed 0 numerical category (max 29110.04058)
+F1(int) - skewed 0 (max 18). [category]
+F2(int) - skewed 0 (max 98) {numerical} 
+	large outlier cluster around 98
+	nice correlations for F2 > 0
+-- F3(float) - skewed 0 numerical. (max 29110.04058) 
+	** transforms nicely wth boxcox (skew -> bimodal)
 F4(int) - skewed 0 category  (max 8)
-** F5(float) - skewed 0 numerical category (max 10.0) very gradual
+	{numerical category}. category that seems to have order...
+* F5(float) - skewed 0 numerical category (max 10.0) very gradual
 -- F6(int) - skewed 0 category gigantic outlier / range. (8billion). extremely sparse.
-F7(int) - skewed 0 category (max 23)
-F8(int) - skewed 0 category (max 9)
+
+F7(int) - skewed 0 (max 23) [numerical] leverage point near 23
+F8(int) - skewed 0 (max 9) [numerical category]
+	not much singl var corr between Y, F7, and F8
+
 F9(int) - skewed 0 category (max 59249). extremely sparse
-F10(int) - skewed 0 category (max 54). nice skew 0-10
-** F11(int) - category (mean 40), nicely distributed histogram with NO data from two categories (35 and 45).
+F10(int) - skewed 0 (max 54). nice skew 0-10
+	experiment with unskewing methods. probably numerical
+** F11(int) - category (mean 40), nicely distributed histogram with 
+	NO data from two categories (35 and 45).
 F12(int) - skewed 0 category (max 12)
+	[numerical category]
 F13(int) - skewed 0 category (max 10)
-F14(int) - skewed 0 category (max 98). nice 0 skew
+	[numerical category]
+F14(int) - skewed 0 category (max 98).
+	[numerical] nice 0 skew
 F15(int) - skewed 0 category (max 10)
+	[category]
 F16(float) - skewed numerical category (max 35807.1)
+	plot against y for insight
 F17(int) - skewed 0 category (max 10)
 *** F18(int) - very beautiful histogram with slight skew. mean around 130
 -- F19(float) - skewed 0 numerical category gigantic outlier / range. (3billion). extremely sparse.
@@ -24,7 +42,8 @@ F20(int) - skewed 0 category (max 10)
 F23(float) - skewed 0 numerical category (max 29110.04058)
 F24(int) - skewed 0 category (max 10)
 F25(int) - skewed 0 category (max 98)
-*** F26(int) - again, very beautiful histogram with slight skew. mean around 50
+-- F26(int) - again, very beautiful histogram with slight skew. mean around 50
+	highly collinear with 18. dropped in favor of 18
 F27(float) - skewed 0 numerical category (max 29110.04058)
 
 
@@ -58,4 +77,4 @@ F22 seems to unskew nicely with np.sqrt
 
 just use boxcox to unskew everything. 
 F3 - works extremely nicely
-F22, F27 (caution around boundaries), F19
+F19, F22, F27 (caution around boundaries)
