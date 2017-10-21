@@ -43,3 +43,20 @@ def eda_countplot(data, y):
         plt.show()
         plt.close()
 
+def get_interactions(data, feats=None):
+    interactionFeatures = set()
+    copy = data
+    if not feats:
+        feats = data.columns
+    for feat1 in feats:
+        for feat2 in data.columns:
+            if (feat1 > feat2):
+                interactionFeatures.add((feat1, feat2))
+            elif (feat2 > feat1):
+                interactionFeatures.add((feat2, feat1))
+
+    for (feat1, feat2) in interactionFeatures:
+        copy[feat1 + "x" + feat2] = copy[feat1] * copy[feat2]
+
+    return copy
+
