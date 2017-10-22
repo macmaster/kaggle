@@ -60,3 +60,109 @@ def get_interactions(data, feats=None):
 
     return copy
 
+
+# Stacked Classifier
+# Implements a two level wolpert stacked classifier.
+# level1 generalization is trained off generalizations from level 0
+# refer to dr. wolpert's famous 1992 paper on stacked generalizations.
+from sklearn.base import BaseEstimator, ClassifierMixin
+from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import train_test_split
+class StackedClassifier(BaseEstimator, ClassifierMixin):
+    def __init__(self, clfs, gen, folds=5):
+        self.skf = StratifiedKFold(n_splits=folds, shuffle=True)
+        self.clfs = clfs # stacked classifiers
+        self.gen = gen # level1 generalizer
+        self.folds = folds
+
+    def fit(self, X, y):
+        ytest = pd.DataFrame()
+        level1 = pd.DataFrame()
+        for train_index, test_index in self.skf.split(X, y):
+            # print train_index, "\n", test_index
+            xtrain, xtest = X.iloc[train_index, :], X.iloc[test_index, :]
+            ytrain = y.iloc[train_index]
+            ytest = pd.concat([ytest, pd.Series(y.iloc[test_index])], axis=0, ignore_index=True)
+            
+            # train level 0
+            level0 = pd.DataFrame()
+            for clf in self.clfs:
+                clf.fit(xtrain, ytrain)
+                clf_pred = pd.DataFrame(clf.predict_proba(xtest)[:, 1])
+                level0 = pd.concat([level0, clf_pred], axis=1, ignore_index=True)
+
+            level1 = pd.concat([level1, level0], axis=0, ignore_index=True)
+
+        # print "level1:", level1.shape, "\n", level1.head()
+        self.gen.fit(level1, ytest.values.ravel())
+        return self
+
+    def predict_proba(self, X):
+        # predict level 0
+        level1 = pd.DataFrame()
+        for clf in self.clfs:
+            clf_pred = pd.DataFrame(clf.predict_proba(X)[:, 1])
+            level1 = pd.concat([level1, clf_pred], axis=1, ignore_index=True)
+
+        return self.gen.predict_proba(level1)
+
+    def predict(self, X):
+        # predict level 0
+        level1 = pd.DataFrame()
+        for clf in self.clfs:
+            clf_pred = pd.DataFrame(clf.predict_proba(X)[:, 1])
+            level1 = pd.concat([level1, clf_pred], axis=1, ignore_index=True)
+
+        return self.gen.predict(level1)
+
+# Extra Stacked Classifier
+# Implements a two level wolpert stacked classifier.
+# level1 generalization is trained off generalizations from level 0
+# refer to dr. wolpert's famous 1992 paper on stacked generalizations.
+# adds original features in next layer
+from sklearn.base import BaseEstimator, ClassifierMixin
+from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import train_test_split
+class ExtraStackedClassifier(BaseEstimator, ClassifierMixin):
+    def __init__(self, clfs, gen, folds=5):
+        self.skf = StratifiedKFold(n_splits=folds, shuffle=True)
+        self.clfs = clfs # stacked classifiers
+        self.gen = gen # level1 generalizer
+        self.folds = folds
+
+    def fit(self, X, y):
+        xtest = pd.DataFrame()
+        ytest = pd.DataFrame()
+        level1 = pd.DataFrame()
+        for train_index, test_index in self.skf.split(X, y):
+            # print train_index, "\n", test_index
+            xtrain = X.iloc[train_index, :] 
+            ytrain = y.iloc[train_index]
+            ytest = pd.concat([ytest, pd.Series(y.iloc[test_index])], axis=0, ignore_index=True)
+            xtest = pd.concat([xtest, pd.DataFrame(X.iloc[test_index, :])], axis=0, ignore_index=True)
+            
+            # train level 0
+            level0 = pd.DataFrame()
+            for clf in self.clfs:
+                clf.fit(xtrain, ytrain)
+                clf_pred = pd.DataFrame(clf.predict_proba(X.iloc[test_index, :])[:, 1])
+                level0 = pd.concat([level0, clf_pred], axis=1, ignore_index=True)
+
+            level1 = pd.concat([level1, level0], axis=0, ignore_index=True)
+
+        print "level1:", level1.shape, "\n", level1.head()
+        self.gen.fit(pd.concat([xtest, level1], axis=1), ytest)
+        return self
+
+    def predict_proba(self, X):
+        # predict level 0
+        level1 = pd.DataFrame()
+        for clf in self.clfs:
+            clf_pred = pd.Series(clf.predict_proba(X)[:, 1])
+            level1 = pd.concat([level1, clf_pred], axis=1, ignore_index=True)
+        
+        xpredict = pd.concat([
+            pd.DataFrame(X.reset_index(drop=True)), pd.DataFrame(level1)], 
+            axis=1, ignore_index=True)
+        return self.gen.predict_proba(xpredict)
+
