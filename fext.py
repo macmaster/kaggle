@@ -20,16 +20,8 @@ train = pd.read_csv("train.csv", index_col="id")
 test = pd.read_csv("test.csv", index_col="id")
 data = pd.concat([train, test]) # all data
 data.drop(["Y"], axis=1, inplace=True)
-    
-# # sanity check
-# print data.head()
-# print data.describe()
-
-# preprocessing pipeline
-columns = data.columns
 data = data.fillna(data.median())
-data = pd.DataFrame(data, columns=columns)
-
+    
 # drop some collinear features
 data.drop(["F23", "F26"], axis=1, inplace=True)
 
@@ -37,26 +29,36 @@ data.drop(["F23", "F26"], axis=1, inplace=True)
 data.drop(["F4", "F7", "F8", "F15", "F17", "F20", "F24"], axis=1, inplace=True)
 data.drop(["F1", "F12", "F13"], axis=1, inplace=True) # further random forest selection
 data.drop(["F9", "F16", "F21", "F5"], axis=1, inplace=True) # round 2 forest selection
-
-# data.drop(["F19", "F11", "F6", "F10"], axis=1, inplace=True) # round 3 extra forest selection
 data.drop(["F11", "F6"], axis=1, inplace=True) # round 3 extra forest selection
-### data.drop(["F22", "F27"], axis=1, inplace=True) # round 4 extra extra forest selection (too much)
+# data.drop(["F19", "F11", "F6", "F10"], axis=1, inplace=True) # round 3 extra forest selection
 
-# interaction features
-# data = custom.get_interactions(data, ["F3", "F27", "F18", "F19", "F14"])
+# interactions
+data = custom.get_interactions(data)
+
+# transform feature names
+def scaled_names(feats, skewedFeats, robustFeats, scaledFeats):
+    newFeats = []
+    for feat in feats:
+        if (feat in skewedFeats):
+            newFeats.append("unskewed" + feat)
+        elif (feat in robustFeats):
+            newFeats.append("robust" + feat)
+        elif (feat in scaledFeats):
+            newFeats.append("scaled" + feat)
+        else:
+            newFeats.append("scaled" + feat)
+    return newFeats
 
 # unskew some features with boxcox
-from scipy.stats import skew, boxcox
-from sklearn.preprocessing import scale, robust_scale, minmax_scale
-
 skewedFeats = [
     "F2", "F14", "F25",             # hi numerical categorical features
     "F3", "F19", "F22", "F27",      # hi numerical quantitative features
-    "F6",                           # features the trees like
 ]
 robustFeats = ["F5", "F10"]
 scaledFeats = list(set(data.columns) - set(skewedFeats) - set(robustFeats))
 
+from scipy.stats import skew, boxcox
+from sklearn.preprocessing import scale, robust_scale, minmax_scale
 for feat in data:
     if (feat in skewedFeats):
         data["unskewed" + feat] = scale(boxcox(data[feat] + 1)[0])
@@ -65,19 +67,22 @@ for feat in data:
     if (feat in robustFeats):
         data["robust" + feat] = robust_scale(data[feat].values.reshape(-1, 1))
     data.drop(feat, axis=1, inplace=True)
-
-print "skewedFeats:\n", skewedFeats
-print "robustFeats:\n", robustFeats
-print "scaledFeats:\n", scaledFeats
 data.fillna(data.median(), inplace=True)
-
-# features the forest likes:
-# data = data[["F3", "F27", "F18", "F19", "F11", "F14", "F22", "F25", "F6"]]
 
 print "data post processing: ", data.shape
 xtest = data[train.shape[0]:]
 xtrain = data[:train.shape[0]]
 ytrain = train["Y"]
+
+# model features
+xgb_feats = scaled_names([ # interaction features to keep
+    "F18", "F3", "F25xF3", "F25xF27",  # F > 179
+    "F18xF19", "F14xF3", "F22xF27", "F14xF18", # "F19xF2", # F > 109 
+    "F18xF3", "F18xF22", # "F14xF19", # F > 97
+    "F2xF3", "F2xF27", "F14xF27", "F19", # F > 88
+    "F10xF18", "F22xF25", # F > 75
+    "F27", "F27xF3", "F14xF22", # F > 45
+], skewedFeats, robustFeats, scaledFeats)
 
 # optional EDA
 # custom.eda_countplot(xtrain, ytrain)
@@ -89,10 +94,7 @@ rforest_clf = RandomForestClassifier( n_jobs = 2,
     n_estimators = 60, criterion="entropy", 
     min_samples_leaf=92, max_leaf_nodes=300,
     oob_score=True, max_features="log2")
-rforest2_clf = RandomForestClassifier( n_jobs = 2,
-    n_estimators = 40, criterion="gini", 
-    min_samples_leaf=92, max_leaf_nodes=300,
-    oob_score=True, max_features="log2")
+
 
 # train an extra random forest
 # best model params(800):  {'max_features': 'log2', 'max_leaf_nodes': 400, 'criterion': 'entropy', 'min_samples_leaf': 12}
@@ -101,10 +103,7 @@ eforest_clf = ExtraTreesClassifier( n_jobs = 2,
     n_estimators = 60, criterion="entropy",
     min_samples_leaf=12, max_leaf_nodes=400,
     max_features="log2")
-eforest2_clf = ExtraTreesClassifier( n_jobs = 2,
-    n_estimators = 60, criterion="gini",
-    min_samples_leaf=12, max_leaf_nodes=400,
-    max_features="log2")
+
 
 # long shot, fit a balanced bagging classifier
 from sklearn.tree import DecisionTreeClassifier
@@ -141,24 +140,24 @@ xgb_clf = xgb.XGBClassifier( nthread = 2,
     learning_rate=0.02, gamma=0.4,
     min_child_weight=2.5, scale_pos_weight=0.67,
     subsample=0.72, colsample_bytree=0.58,
-    reg_alpha=2.5, seed=random.randint(0, 50),
+    reg_lambda=2.5, seed=random.randint(0, 50),
 )
 
-# xgb_params = {
-#     "n_estimators" : 3000,
-#     "learning_rate" : 0.01,
-#     "max_depth" : 4,
-#     "subsample" : 0.72,
-#     "colsample_bytree" : 0.58,
-#     "min_child_weight" : 2.5,
-#     "scale_pos_weight" : 1,
-#     "gamma" : 0.35,
-# }
-# 
+xgb_params = {
+    "n_estimators" : 3000,
+    "learning_rate" : 0.02,
+    "max_depth" : 3,
+    "subsample" : 0.72,
+    "colsample_bytree" : 0.58,
+    "min_child_weight" : 2.5,
+    "scale_pos_weight" : 0.67,
+    "gamma" : 0.40,
+}
+
 # # built in cv for n estimators
 # xgtrain = xgb.DMatrix(xtrain.values, label=ytrain.values)
 # cvresult = xgb.cv(xgb_params, xgtrain, verbose_eval=False, 
-#     num_boost_round=1000, nfold=10, stratified=True, metrics="auc",
+#     num_boost_round=3000, nfold=10, stratified=True, metrics="auc",
 #     early_stopping_rounds=100,)
 # print "xgb.cv result: ", cvresult.sort_values(by="test-auc-mean")
 # input ("waiting to poll...")
@@ -168,12 +167,13 @@ xgb_grid = {
     "n_estimators" : [550],
     "learning_rate" : [0.02],
     "max_depth" : [3],
-    "gamma" : [0.40],
-    "min_child_weight" : [2.5],
+    "gamma" : [0.5],
+    "min_child_weight" : [3],
     "subsample" : [0.72],
     "colsample_bytree" : [0.58],
-    "scale_pos_weight" : [0.65, 0.67, 0.69],
-    "reg_alpha" : [2.5], # 1.1
+    "scale_pos_weight" : [1],
+    # "reg_alpha" : [2.5], # 1.1
+    # "reg_lambda" : []
 }
 
 # grid_search = GridSearchCV(xgb_clf, xgb_grid, cv=5, verbose=5000, scoring="roc_auc")
@@ -181,9 +181,6 @@ xgb_grid = {
 # print "best model params: ", grid_search.best_params_
 # print "best model cv score: ", grid_search.best_score_
 
-# # from sklearn.externals import joblib
-# # joblib.dump(rforest_clf, "models/random_forest.pkl")
-# # joblib.dump(eforest_clf, "models/extra_random_forest.pkl")
 # rforest_clf.fit(xtrain, ytrain)
 # importances = pd.Series(rforest_clf.feature_importances_, index=xtrain.columns.values)
 # print "Random Forest Feature Importances:\n", importances.sort_values()
@@ -195,11 +192,16 @@ xgb_grid = {
 # # rforest_clf = joblib.load("models/random_forest.pkl")
 # # eforest_clf = joblib.load("models/extra_random_forest.pkl")
 
-# # plot xgb feature importance
-# xgb_clf = xgb_clf.fit(xtrain, ytrain, eval_metric="auc")
-# xgb.plot_importance(xgb_clf)
-# plt.title("XGB Feature Importance")
-# plt.show(); plt.close()
+# plot xgb feature importance
+xgb_clf = xgb_clf.fit(xtrain[xgb_feats], ytrain, eval_metric="auc")
+xgb.plot_importance(xgb_clf)
+plt.tight_layout()
+plt.title("XGB Feature Importance")
+plt.show(); plt.close()
+
+# create classifier pipes
+from sklearn.pipeline import make_pipeline
+xgb_pipe = make_pipeline(custom.PandasColumnSelector(xgb_feats), xgb_clf) 
 
 ###### Forest Stack
 # run a stacking generalization over the 2 forest models
@@ -255,7 +257,7 @@ gen_grid = {
 
 # evaluate performance metrics
 from sklearn.metrics import auc, roc_curve, roc_auc_score, confusion_matrix
-clf = stack_clf # pick a classifier
+clf = xgb_pipe # pick a classifier
 clf.fit(xtrain, ytrain)
 clf_pred = clf.predict_proba(xtrain)[:, 1]
 fpr, tpr, thresholds = roc_curve(ytrain, clf_pred)
