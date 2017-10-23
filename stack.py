@@ -31,12 +31,13 @@ data = data.fillna(data.median())
 data = pd.DataFrame(data, columns=columns)
 
 # drop some collinear features
-# data.drop(["F26"], axis=1, inplace=True)
+data.drop(["F26"], axis=1, inplace=True)
 
 # junk features
 data.drop(["F4", "F7", "F8", "F15", "F17", "F20", "F24"], axis=1, inplace=True)
 data.drop(["F1", "F12", "F13"], axis=1, inplace=True) # further random forest selection
-data.drop(["F9", "F16", "F21", "F5", "F6"], axis=1, inplace=True) # round 2 forest selection
+# data.drop(["F9", "F16", "F21", "F5", "F6"], axis=1, inplace=True) # round 2 forest selection
+data.drop(["F9", "F16", "F21"], axis=1, inplace=True) # round 2 forest selection
 
 # data.drop(["F19", "F11", "F10"], axis=1, inplace=True) # round 3 extra forest selection
 ### data.drop(["F22", "F27"], axis=1, inplace=True) # round 4 extra extra forest selection (too much)
@@ -47,29 +48,29 @@ data.drop(["F9", "F16", "F21", "F5", "F6"], axis=1, inplace=True) # round 2 fore
 # scale some features with boxcox 
 from scipy.stats import skew, boxcox
 from sklearn.preprocessing import scale, robust_scale, minmax_scale
-data.fillna(data.median(), inplace=True)
+data.fillna(data.mean(), inplace=True)
 data = data.apply(scale)
 
 # # add feature interactions
-data = custom.get_interactions(data)
-interactions = [
-    "F27xF27", "F10xF3", "F2xF23", "F26xF3", "F25xF3", "F14xF23",
-    "F23xF25", "F19xF27", "F14xF18", "F22xF3", "F14xF3",
-    "F14xF25", "F14xF2", "F2xF3",  "F18xF22", "F25xF27", "F14xF22", "F10xF26", "F2xF25", "F10xF11", "F23xF26", "F22xF25", 
-]
-
-# old_interactions = [
-#     "F2xF23", "F23xF25", "F14xF23", "F25xF3", "F14xF25", "F27xF27",
-#     "F14xF18", "F14xF3", "F2xF25", "F14xF2", "F22xF3", "F19xF27", "F2xF3",
-#     "F10xF3", "F26xF3", "F22xF25", ### "F23xF26", "F18xF22", "F10xF11",
-#     ### "F25xF27", "F14xF22", "F10xF26", "F10xF23", ## "F18xF2",
-#     ## "F11xF3", "F11xF22", "F14xF27", "F10xF2", "F14", "F11xF26",
-#     # "F23xF23", "F27", "F2xF22", "F2xF27", "F19xF22", "F19",
-#     # "F22xF27", "F18xF25", "F2", "F19xF3", "F19xF23", "F18xF19",
-#     # "F10xF22", "F10xF27", "F25", "F19xF25", "F10xF19", "F14xF26"
+# data = custom.get_interactions(data)
+# interactions = [
+#     "F27xF27", "F10xF3", "F2xF23", "F26xF3", "F25xF3", "F14xF23",
+#     "F23xF25", "F19xF27", "F14xF18", "F22xF3", "F14xF3",
+#     "F14xF25", "F14xF2", "F2xF3",  "F18xF22", "F25xF27", "F14xF22", "F10xF26", "F2xF25", "F10xF11", "F23xF26", "F22xF25", 
 # ]
-
-data = data[interactions]
+# 
+# # old_interactions = [
+# #     "F2xF23", "F23xF25", "F14xF23", "F25xF3", "F14xF25", "F27xF27",
+# #     "F14xF18", "F14xF3", "F2xF25", "F14xF2", "F22xF3", "F19xF27", "F2xF3",
+# #     "F10xF3", "F26xF3", "F22xF25", ### "F23xF26", "F18xF22", "F10xF11",
+# #     ### "F25xF27", "F14xF22", "F10xF26", "F10xF23", ## "F18xF2",
+# #     ## "F11xF3", "F11xF22", "F14xF27", "F10xF2", "F14", "F11xF26",
+# #     # "F23xF23", "F27", "F2xF22", "F2xF27", "F19xF22", "F19",
+# #     # "F22xF27", "F18xF25", "F2", "F19xF3", "F19xF23", "F18xF19",
+# #     # "F10xF22", "F10xF27", "F25", "F19xF25", "F10xF19", "F14xF26"
+# # ]
+# 
+# data = data[interactions]
 
 print "data post processing: ", data.shape
 xtest = data[train.shape[0]:]
@@ -128,11 +129,11 @@ knn_clf = KNeighborsClassifier(n_jobs=2, n_neighbors=300)
 import xgboost as xgb
 import random
 xgb_clf = xgb.XGBClassifier( nthread = 2,
-    n_estimators = 450, max_depth=4,
-    learning_rate=0.02, gamma=0.37,
-    min_child_weight=2.3, scale_pos_weight=0.85,
+    n_estimators = 1200, max_depth=4,
+    learning_rate=0.01, gamma=0.37,
+    min_child_weight=2.35, scale_pos_weight=0.95,
     subsample=0.72, colsample_bytree=0.58,
-    reg_alpha=2.5, seed=random.randint(0, 50),
+    reg_alpha=4.5, seed=random.randint(0, 50),
     # n_estimators = 550, max_depth=3,
     # learning_rate=0.02, gamma=0.4,
     # min_child_weight=2.5, scale_pos_weight=0.67,
@@ -140,36 +141,37 @@ xgb_clf = xgb.XGBClassifier( nthread = 2,
     # reg_alpha=2.5, seed=random.randint(0, 50),
 )
 
-# xgb_params = {
-#     "n_estimators" : 3000,
-#     "learning_rate" : 0.02,
-#     "max_depth" : 4,
-#     "subsample" : 0.72,
-#     "colsample_bytree" : 0.58,
-#     "min_child_weight" : 2.5,
-#     "scale_pos_weight" : 1,
-#     "gamma" : 0.35,
-# }
-# 
+xgb_params = {
+    "n_estimators" : 3000,
+    "learning_rate" : 0.01,
+    "max_depth" : 4,
+    "subsample" : 0.72,
+    "colsample_bytree" : 0.58,
+    "min_child_weight" : 2.35,
+    "scale_pos_weight" : 0.95,
+    "gamma" : 0.37,
+    "reg_alpha" : 4.5
+}
+
 # # built in cv for n estimators
 # xgtrain = xgb.DMatrix(xtrain.values, label=ytrain.values)
 # cvresult = xgb.cv(xgb_params, xgtrain, verbose_eval=False, 
-#     num_boost_round=1000, nfold=10, stratified=True, metrics="auc",
+#     num_boost_round=3000, nfold=10, stratified=True, metrics="auc",
 #     early_stopping_rounds=100,)
 # print "xgb.cv result: ", cvresult.sort_values(by="test-auc-mean")
 # input ("waiting to poll...")
 
 from sklearn.model_selection import GridSearchCV
 xgb_grid = {
-    "n_estimators" : [450],
+    "n_estimators" : [500],
     "learning_rate" : [0.02],
     "max_depth" : [4],
-    "gamma" : [0.37, 0.40, 0.43],
-    "min_child_weight" : [2.3, 2.5, 2.7],
+    "gamma" : [0.37],
+    "min_child_weight" : [2.3],
     "subsample" : [0.72],
     "colsample_bytree" : [0.58],
-    "scale_pos_weight" : [0.75, 0.8, 0.85],
-    "reg_alpha" : [1, 2.5], # 1.1
+    "scale_pos_weight" : [0.95],
+    "reg_alpha" : [5], # 1.1
 }
 
 # grid_search = GridSearchCV(xgb_clf, xgb_grid, cv=5, verbose=5000, scoring="roc_auc")
@@ -180,10 +182,10 @@ xgb_grid = {
 # # from sklearn.externals import joblib
 # # joblib.dump(rforest_clf, "models/random_forest.pkl")
 # # joblib.dump(eforest_clf, "models/extra_random_forest.pkl")
-rforest_clf.fit(xtrain, ytrain)
-importances = pd.Series(rforest_clf.feature_importances_, index=xtrain.columns.values)
-print "Random Forest Feature Importances:\n", importances.sort_values()
-print "Random Forest oob score: ", rforest_clf.oob_score_
+# rforest_clf.fit(xtrain, ytrain)
+# importances = pd.Series(rforest_clf.feature_importances_, index=xtrain.columns.values)
+# print "Random Forest Feature Importances:\n", importances.sort_values()
+# print "Random Forest oob score: ", rforest_clf.oob_score_
 
 # eforest_clf.fit(xtrain, ytrain)
 # importances = pd.Series(eforest_clf.feature_importances_, index=xtrain.columns.values)
@@ -193,9 +195,9 @@ print "Random Forest oob score: ", rforest_clf.oob_score_
 
 # # plot xgb feature importance
 # # xgb feature selection
-# xgb_clf = xgb_clf.fit(xtrain, ytrain, eval_metric="auc")
-# importances = pd.Series(xgb_clf.feature_importances_, index=xtrain.columns.values)
-# print "XGB Feature Importances:\n", importances.sort_values()
+xgb_clf = xgb_clf.fit(xtrain, ytrain, eval_metric="auc")
+importances = pd.Series(xgb_clf.feature_importances_, index=xtrain.columns.values)
+print "XGB Feature Importances:\n", importances.sort_values()
 # xgb.plot_importance(xgb_clf)
 # plt.title("XGB Feature Importance")
 # plt.show(); plt.close()
@@ -254,7 +256,7 @@ gen_grid = {
 
 # evaluate performance metrics
 from sklearn.metrics import auc, roc_curve, roc_auc_score, confusion_matrix
-clf = stack_clf # pick a classifier
+clf = xgb_clf # pick a classifier
 clf.fit(xtrain, ytrain)
 clf_pred = clf.predict_proba(xtrain)[:, 1]
 fpr, tpr, thresholds = roc_curve(ytrain, clf_pred)
