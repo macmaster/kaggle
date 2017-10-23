@@ -129,8 +129,8 @@ knn_clf = KNeighborsClassifier(n_jobs=2, n_neighbors=300)
 import xgboost as xgb
 import random
 xgb_clf = xgb.XGBClassifier( nthread = 2,
-    n_estimators = 1200, max_depth=4,
-    learning_rate=0.01, gamma=0.37,
+    n_estimators = 500, max_depth=4,
+    learning_rate=0.02, gamma=0.37,
     min_child_weight=2.35, scale_pos_weight=0.95,
     subsample=0.72, colsample_bytree=0.58,
     reg_alpha=4.5, seed=random.randint(0, 50),
@@ -163,7 +163,7 @@ xgb_params = {
 
 from sklearn.model_selection import GridSearchCV
 xgb_grid = {
-    "n_estimators" : [500],
+    "n_estimators" : [500], # 1200 for 0.01
     "learning_rate" : [0.02],
     "max_depth" : [4],
     "gamma" : [0.37],
@@ -272,9 +272,9 @@ print "cross validation scores:\n", cv_scores
 print "cv stats(mean, std): (%f, %f)" % (cv_scores.mean(), cv_scores.std())
 
 # plot the roc curve
-custom.roc_plot(fpr, tpr)
-plt.show()
-plt.close()
+# custom.roc_plot(fpr, tpr)
+# plt.show()
+# plt.close()
 
 # submit solution
 submit = pd.DataFrame()
