@@ -34,12 +34,40 @@ def roc_plot(fpr, tpr):
     plt.xlabel("False Positive Rate")
     plt.tight_layout()
 
+def eda_clf_boundary(x1, x2, label, clf_pred):
+    ax = plt.gca()
+    x_min, x_max = x1.min() - 1, x1.max() + 1
+    y_min, y_max = x2.min() - 1, x2.max() + 1
+    xx, yy = np.meshgrid(np.arange(x_min, x_max, 0.05), np.arange(y_min, y_max, 0.05))
+    ax.scatter(x1, x2, c=label, s=20, edgecolor='k')
+    plt.tight_layout()
+    plt.show()
+    plt.close()
+
+def eda_boxplot(data, y): 
+    for feat in data:
+        sns.boxplot(y=data[feat], x=y)
+        plt.title(feat)
+        plt.tight_layout()
+        plt.show()
+        plt.close()
+
+def eda_heatmap(data, vmin=-0.7, vmax=0.7, annot=False): 
+    ax = sns.heatmap(data.corr(), vmin=vmin, vmax=vmax, annot=annot, fmt=".2f")
+    ax.set_title("Correlation Heatmap")
+    ax.set_yticklabels(ax.get_yticklabels(), rotation=0)
+    ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
+    plt.tight_layout()
+    plt.show()
+    plt.close()
+
 def eda_countplot(data, y):
     for feat in data:
         print data[feat].describe()
         plt.title(feat)
         # sns.distplot(data[feat], kde=False)
         count_plot(data[feat].astype(int), y)
+        plt.tight_layout()
         plt.show()
         plt.close()
 
@@ -108,6 +136,31 @@ def resamp_cross_val_score(resamp, clf, xtrain, ytrain, cv=5, verbose=False):
         cv_scores.append(score)
         k += 1
     return cv_scores
+
+def data_scaling(unscaledData, skewedFeats=None, robustFeats=None, scaledFeats=None): 
+    # unskew some features with boxcox
+    from scipy.stats import skew, boxcox
+    from sklearn.preprocessing import scale, robust_scale, minmax_scale
+    data = unscaledData
+    if skewedFeats is None and robustFeats is None and scaledFeats is None:
+        skewedFeats = [
+            "F2", "F14", "F25",             # hi numerical categorical features
+            "F3", "F19", "F22", "F27",      # hi numerical quantitative features
+        ]
+        robustFeats = ["F5", "F10"]
+        scaledFeats = list(set(data.columns) - set(skewedFeats) - set(robustFeats))
+
+    for feat in data:
+        if (feat in skewedFeats):
+            data["unskewed" + feat] = scale(boxcox(data[feat] + 1)[0])
+        if (feat in scaledFeats):
+            data["scaled" + feat] = scale(data[feat])
+        if (feat in robustFeats):
+            data["robust" + feat] = robust_scale(data[feat].values.reshape(-1, 1))
+        data.drop(feat, axis=1, inplace=True)
+    data.fillna(data.median(), inplace=True)
+    return data
+
 
 from sklearn.base import BaseEstimator, TransformerMixin
 class PandasColumnSelector(BaseEstimator, TransformerMixin):

@@ -9,6 +9,7 @@ import scipy.stats as stats
 import seaborn as sns
 import pandas as pd
 import numpy as np
+import random
 
 import warnings
 warnings.simplefilter("ignore", DeprecationWarning)
@@ -21,60 +22,50 @@ test = pd.read_csv("test.csv", index_col="id")
 data = pd.concat([train, test]) # all data
 data.drop(["Y"], axis=1, inplace=True)
     
-# # sanity check
-# print data.head()
-# print data.describe()
-
-# preprocessing pipeline
-columns = data.columns
-data = data.fillna(data.median())
-data = pd.DataFrame(data, columns=columns)
-
 # drop some collinear features
-# data.drop(["F26"], axis=1, inplace=True)
+# data.drop(["F23", "F26"], axis=1, inplace=True)
 
 # junk features
 data.drop(["F4", "F7", "F8", "F15", "F17", "F20", "F24"], axis=1, inplace=True)
 data.drop(["F1", "F12", "F13"], axis=1, inplace=True) # further random forest selection
-data.drop(["F9", "F16", "F21", "F5", "F6"], axis=1, inplace=True) # round 2 forest selection
+data.drop(["F9", "F16", "F21", "F5"], axis=1, inplace=True) # round 2 forest selection
+data.drop(["F11", "F6"], axis=1, inplace=True) # round 3 extra forest selection
 
-# data.drop(["F19", "F11", "F10"], axis=1, inplace=True) # round 3 extra forest selection
-### data.drop(["F22", "F27"], axis=1, inplace=True) # round 4 extra extra forest selection (too much)
+# convert to categorical features
+from sklearn.preprocessing import scale
+qual = ["F2", "F14", "F25"]
+qual=[]
+quant = data.columns.drop(qual)
+for feat in qual: 
+    data[feat] = data[feat].apply(str)
+data = pd.get_dummies(data)
+data = data.fillna(data.mean())
+# data[quant] = data[quant].apply(scale)
+print data.head()
 
-# interaction features
-# data = custom.get_interactions(data, ["F3", "F27", "F18", "F19", "F14"])
+# data = data[[
+#     "F3", "F18", "F19", "F27", "F10", "F22",
+#     "F14_0", "F25_0", "F2_0", 
+#     "F14_1", "F2_1", "F25_1", 
+#     "F14_2", "F2_2", "F25_2",
+#     # "F14_3", "F25_3",
+#     # "F25_96", "F25_98", 
+#     # "F14_96", "F14_98",
+#     # "F2_96", "F2_98",
+# ]]
 
-# scale some features with boxcox 
-from scipy.stats import skew, boxcox
-from sklearn.preprocessing import scale, robust_scale, minmax_scale
-data.fillna(data.median(), inplace=True)
-data = data.apply(scale)
 
-# # add feature interactions
-data = custom.get_interactions(data)
-interactions = [
-    "F27xF27", "F10xF3", "F2xF23", "F26xF3", "F25xF3", "F14xF23",
-    "F23xF25", "F19xF27", "F14xF18", "F22xF3", "F14xF3",
-    "F14xF25", "F14xF2", "F2xF3",  "F18xF22", "F25xF27", "F14xF22", "F10xF26", "F2xF25", "F10xF11", "F23xF26", "F22xF25", 
-]
+# data scaling / unskewing
+# data = custom.data_scaling(data)
 
-# old_interactions = [
-#     "F2xF23", "F23xF25", "F14xF23", "F25xF3", "F14xF25", "F27xF27",
-#     "F14xF18", "F14xF3", "F2xF25", "F14xF2", "F22xF3", "F19xF27", "F2xF3",
-#     "F10xF3", "F26xF3", "F22xF25", ### "F23xF26", "F18xF22", "F10xF11",
-#     ### "F25xF27", "F14xF22", "F10xF26", "F10xF23", ## "F18xF2",
-#     ## "F11xF3", "F11xF22", "F14xF27", "F10xF2", "F14", "F11xF26",
-#     # "F23xF23", "F27", "F2xF22", "F2xF27", "F19xF22", "F19",
-#     # "F22xF27", "F18xF25", "F2", "F19xF3", "F19xF23", "F18xF19",
-#     # "F10xF22", "F10xF27", "F25", "F19xF25", "F10xF19", "F14xF26"
-# ]
-
-data = data[interactions]
-
-print "data post processing: ", data.shape
+print "data after feature selection: ", data.shape
+print "features:\n", data.columns
 xtest = data[train.shape[0]:]
 xtrain = data[:train.shape[0]]
 ytrain = train["Y"]
+
+# xtrain = xtrain[(xtrain["F14"] < 90) & (xtrain["F2"] < 90) & (xtrain["F25"] < 90)]
+# ytrain = ytrain[xtrain.index]
 
 # optional EDA
 # custom.eda_countplot(xtrain, ytrain)
@@ -86,16 +77,28 @@ ytrain = train["Y"]
 from sklearn.ensemble import RandomForestClassifier
 rforest_clf = RandomForestClassifier( n_jobs = 2,
     n_estimators = 80, criterion="entropy", 
-    min_samples_leaf=92, max_leaf_nodes=325,
-    oob_score=True, max_features="log2")
+    min_samples_leaf=92, max_leaf_nodes=300,
+    oob_score=True, max_features="log2",
+    class_weight=None)
+
+from sklearn.model_selection import GridSearchCV
+forest_grid = {
+    "n_estimators" : [60],
+    "min_samples_leaf" : [115],
+    "max_leaf_nodes" : [210],
+}
+
+# grid_search = GridSearchCV(rforest_clf, forest_grid, cv=5, verbose=5000, scoring="roc_auc")
+# grid_search.fit(xtrain, ytrain)
+# print "best model params: ", grid_search.best_params_
+# print "best model cv score: ", grid_search.best_score_
 
 # train an extra random forest
 # best model params(800):  {'max_features': 'log2', 'max_leaf_nodes': 400, 'criterion': 'entropy', 'min_samples_leaf': 12}
 from sklearn.ensemble import ExtraTreesClassifier
 eforest_clf = ExtraTreesClassifier( n_jobs = 2,
-    n_estimators = 120, criterion="entropy",
+    n_estimators = 60, criterion="entropy",
     min_samples_leaf=12, max_leaf_nodes=400,
-    # min_samples_leaf=3, max_leaf_nodes=425, # interaction features
     max_features="log2")
 
 # long shot, fit a balanced bagging classifier
@@ -122,27 +125,21 @@ gaussian_clf = GaussianNB()
 # train a K nearest neighbors classifier
 from sklearn.neighbors import KNeighborsClassifier
 knn_clf = KNeighborsClassifier(n_jobs=2, n_neighbors=300)
+# knn_clf = KNeighborsClassifier(n_jobs=2, n_neighbors=1)
 
 # train an xgboost model
-# {'colsample_bytree': 0.7, 'scale_pos_weight': 1, 'learning_rate': 0.05, 'min_child_weight': 3, 'n_estimators': 160, 'subsample': 0.7, 'max_depth': 4, 'gamma': 0 
 import xgboost as xgb
-import random
 xgb_clf = xgb.XGBClassifier( nthread = 2,
-    n_estimators = 450, max_depth=4,
-    learning_rate=0.02, gamma=0.37,
-    min_child_weight=2.3, scale_pos_weight=0.85,
+    n_estimators = 550, max_depth=3,
+    learning_rate=0.02, gamma=0.4,
+    min_child_weight=2.5, scale_pos_weight=0.67,
     subsample=0.72, colsample_bytree=0.58,
     reg_alpha=2.5, seed=random.randint(0, 50),
-    # n_estimators = 550, max_depth=3,
-    # learning_rate=0.02, gamma=0.4,
-    # min_child_weight=2.5, scale_pos_weight=0.67,
-    # subsample=0.72, colsample_bytree=0.58,
-    # reg_alpha=2.5, seed=random.randint(0, 50),
 )
 
 # xgb_params = {
 #     "n_estimators" : 3000,
-#     "learning_rate" : 0.02,
+#     "learning_rate" : 0.01,
 #     "max_depth" : 4,
 #     "subsample" : 0.72,
 #     "colsample_bytree" : 0.58,
@@ -161,15 +158,15 @@ xgb_clf = xgb.XGBClassifier( nthread = 2,
 
 from sklearn.model_selection import GridSearchCV
 xgb_grid = {
-    "n_estimators" : [450],
+    "n_estimators" : [550],
     "learning_rate" : [0.02],
-    "max_depth" : [4],
-    "gamma" : [0.37, 0.40, 0.43],
-    "min_child_weight" : [2.3, 2.5, 2.7],
+    "max_depth" : [3],
+    "gamma" : [0.40],
+    "min_child_weight" : [2.5],
     "subsample" : [0.72],
     "colsample_bytree" : [0.58],
-    "scale_pos_weight" : [0.75, 0.8, 0.85],
-    "reg_alpha" : [1, 2.5], # 1.1
+    "scale_pos_weight" : [0.65, 0.67, 0.69],
+    "reg_alpha" : [2.5], # 1.1
 }
 
 # grid_search = GridSearchCV(xgb_clf, xgb_grid, cv=5, verbose=5000, scoring="roc_auc")
@@ -192,10 +189,7 @@ print "Random Forest oob score: ", rforest_clf.oob_score_
 # # eforest_clf = joblib.load("models/extra_random_forest.pkl")
 
 # # plot xgb feature importance
-# # xgb feature selection
 # xgb_clf = xgb_clf.fit(xtrain, ytrain, eval_metric="auc")
-# importances = pd.Series(xgb_clf.feature_importances_, index=xtrain.columns.values)
-# print "XGB Feature Importances:\n", importances.sort_values()
 # xgb.plot_importance(xgb_clf)
 # plt.title("XGB Feature Importance")
 # plt.show(); plt.close()
@@ -251,10 +245,9 @@ gen_grid = {
 # print "best gen model params: ", grid_search.best_params_
 # print "best gen model cv score: ", grid_search.best_score_
 
-
 # evaluate performance metrics
 from sklearn.metrics import auc, roc_curve, roc_auc_score, confusion_matrix
-clf = stack_clf # pick a classifier
+clf = rforest_clf # pick a classifier
 clf.fit(xtrain, ytrain)
 clf_pred = clf.predict_proba(xtrain)[:, 1]
 fpr, tpr, thresholds = roc_curve(ytrain, clf_pred)
@@ -279,3 +272,6 @@ submit = pd.DataFrame()
 submit["id"] = test.index
 submit["Y"] = clf.predict_proba(xtest)[:, 1]
 submit.to_csv("stack.csv", index=False)
+
+pred = pd.concat([xtrain, pd.Series(clf_pred, index=xtrain.index), ytrain], axis=1)
+pred.to_csv("pred.csv")

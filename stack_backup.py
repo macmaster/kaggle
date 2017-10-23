@@ -51,14 +51,14 @@ data.fillna(data.median(), inplace=True)
 data = data.apply(scale)
 
 # # add feature interactions
-data = custom.get_interactions(data)
-interactions = [
-    "F27xF27", "F10xF3", "F2xF23", "F26xF3", "F25xF3", "F14xF23",
-    "F23xF25", "F19xF27", "F14xF18", "F22xF3", "F14xF3",
-    "F14xF25", "F14xF2", "F2xF3",  "F18xF22", "F25xF27", "F14xF22", "F10xF26", "F2xF25", "F10xF11", "F23xF26", "F22xF25", 
-]
+# data = custom.get_interactions(data)
+# interactions = [
+#     "F27xF27", "F10xF3", "F2xF23", "F26xF3", "F25xF3", "F14xF23",
+#     "F23xF25", "F19xF27", "F14xF18", "F22xF3", "F14xF3",
+#     "F14xF25", "F14xF2", "F2xF3",  "F18xF22", "F25xF27", "F14xF22", "F10xF26", "F2xF25", "F10xF11", "F23xF26", "F22xF25", 
+# ]
 
-# old_interactions = [
+# interactions = [
 #     "F2xF23", "F23xF25", "F14xF23", "F25xF3", "F14xF25", "F27xF27",
 #     "F14xF18", "F14xF3", "F2xF25", "F14xF2", "F22xF3", "F19xF27", "F2xF3",
 #     "F10xF3", "F26xF3", "F22xF25", ### "F23xF26", "F18xF22", "F10xF11",
@@ -69,7 +69,7 @@ interactions = [
 #     # "F10xF22", "F10xF27", "F25", "F19xF25", "F10xF19", "F14xF26"
 # ]
 
-data = data[interactions]
+# data = data[interactions]
 
 print "data post processing: ", data.shape
 xtest = data[train.shape[0]:]
@@ -85,17 +85,24 @@ ytrain = train["Y"]
 # best model params(1800):  {'max_features': 'log2', 'max_leaf_nodes': 300, 'criterion': 'entropy', 'min_samples_leaf': 92}
 from sklearn.ensemble import RandomForestClassifier
 rforest_clf = RandomForestClassifier( n_jobs = 2,
-    n_estimators = 80, criterion="entropy", 
-    min_samples_leaf=92, max_leaf_nodes=325,
+    n_estimators = 60, criterion="entropy", 
+    min_samples_leaf=92, max_leaf_nodes=300,
+    oob_score=True, max_features="log2")
+rforest2_clf = RandomForestClassifier( n_jobs = 2,
+    n_estimators = 40, criterion="gini", 
+    min_samples_leaf=92, max_leaf_nodes=300,
     oob_score=True, max_features="log2")
 
 # train an extra random forest
 # best model params(800):  {'max_features': 'log2', 'max_leaf_nodes': 400, 'criterion': 'entropy', 'min_samples_leaf': 12}
 from sklearn.ensemble import ExtraTreesClassifier
 eforest_clf = ExtraTreesClassifier( n_jobs = 2,
-    n_estimators = 120, criterion="entropy",
+    n_estimators = 60, criterion="entropy",
     min_samples_leaf=12, max_leaf_nodes=400,
-    # min_samples_leaf=3, max_leaf_nodes=425, # interaction features
+    max_features="log2")
+eforest2_clf = ExtraTreesClassifier( n_jobs = 2,
+    n_estimators = 60, criterion="gini",
+    min_samples_leaf=12, max_leaf_nodes=400,
     max_features="log2")
 
 # long shot, fit a balanced bagging classifier
@@ -128,21 +135,16 @@ knn_clf = KNeighborsClassifier(n_jobs=2, n_neighbors=300)
 import xgboost as xgb
 import random
 xgb_clf = xgb.XGBClassifier( nthread = 2,
-    n_estimators = 450, max_depth=4,
-    learning_rate=0.02, gamma=0.37,
-    min_child_weight=2.3, scale_pos_weight=0.85,
+    n_estimators = 550, max_depth=3,
+    learning_rate=0.02, gamma=0.4,
+    min_child_weight=2.5, scale_pos_weight=0.67,
     subsample=0.72, colsample_bytree=0.58,
     reg_alpha=2.5, seed=random.randint(0, 50),
-    # n_estimators = 550, max_depth=3,
-    # learning_rate=0.02, gamma=0.4,
-    # min_child_weight=2.5, scale_pos_weight=0.67,
-    # subsample=0.72, colsample_bytree=0.58,
-    # reg_alpha=2.5, seed=random.randint(0, 50),
 )
 
 # xgb_params = {
 #     "n_estimators" : 3000,
-#     "learning_rate" : 0.02,
+#     "learning_rate" : 0.01,
 #     "max_depth" : 4,
 #     "subsample" : 0.72,
 #     "colsample_bytree" : 0.58,
@@ -161,15 +163,15 @@ xgb_clf = xgb.XGBClassifier( nthread = 2,
 
 from sklearn.model_selection import GridSearchCV
 xgb_grid = {
-    "n_estimators" : [450],
+    "n_estimators" : [550],
     "learning_rate" : [0.02],
-    "max_depth" : [4],
-    "gamma" : [0.37, 0.40, 0.43],
-    "min_child_weight" : [2.3, 2.5, 2.7],
+    "max_depth" : [3],
+    "gamma" : [0.40],
+    "min_child_weight" : [2.5],
     "subsample" : [0.72],
     "colsample_bytree" : [0.58],
-    "scale_pos_weight" : [0.75, 0.8, 0.85],
-    "reg_alpha" : [1, 2.5], # 1.1
+    "scale_pos_weight" : [0.65, 0.67, 0.69],
+    "reg_alpha" : [2.5], # 1.1
 }
 
 # grid_search = GridSearchCV(xgb_clf, xgb_grid, cv=5, verbose=5000, scoring="roc_auc")
@@ -191,14 +193,15 @@ print "Random Forest oob score: ", rforest_clf.oob_score_
 # # rforest_clf = joblib.load("models/random_forest.pkl")
 # # eforest_clf = joblib.load("models/extra_random_forest.pkl")
 
-# # plot xgb feature importance
-# # xgb feature selection
-# xgb_clf = xgb_clf.fit(xtrain, ytrain, eval_metric="auc")
-# importances = pd.Series(xgb_clf.feature_importances_, index=xtrain.columns.values)
-# print "XGB Feature Importances:\n", importances.sort_values()
-# xgb.plot_importance(xgb_clf)
-# plt.title("XGB Feature Importance")
-# plt.show(); plt.close()
+
+# plot xgb feature importance
+# xgb feature selection
+xgb_clf = xgb_clf.fit(xtrain, ytrain, eval_metric="auc")
+importances = pd.Series(xgb_clf.feature_importances_, index=xtrain.columns.values)
+print "XGB Feature Importances:\n", importances.sort_values()
+xgb.plot_importance(xgb_clf)
+plt.title("XGB Feature Importance")
+plt.show(); plt.close()
 
 ###### Forest Stack
 # run a stacking generalization over the 2 forest models
@@ -254,7 +257,7 @@ gen_grid = {
 
 # evaluate performance metrics
 from sklearn.metrics import auc, roc_curve, roc_auc_score, confusion_matrix
-clf = stack_clf # pick a classifier
+clf = rforest_clf # pick a classifier
 clf.fit(xtrain, ytrain)
 clf_pred = clf.predict_proba(xtrain)[:, 1]
 fpr, tpr, thresholds = roc_curve(ytrain, clf_pred)
